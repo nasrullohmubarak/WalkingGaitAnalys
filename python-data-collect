@@ -1,0 +1,105 @@
+import flet as ft
+import cv2
+from cvzone.PoseModule import PoseDetector
+import os
+import tkinter as tk
+from tkinter import filedialog
+from tkinter import simpledialog  # Import simpledialog for user input
+import datetime  # Tambahkan impor modul datetime
+
+# Initialize the folder_path and custom_file_name to None
+csv_folder = None
+custom_file_name = None
+
+# Variable to track whether video capture is running
+video_capture_running = False
+
+# Pose data list
+posList = []
+
+def main(page: ft.Page):
+    page.update()
+
+    def choose_save_folder(e):  # Accept the argument passed by Flet
+        global csv_folder
+        csv_folder = filedialog.askdirectory()  # Open a folder dialog to choose the save location
+
+    def set_custom_file_name(e):
+        global custom_file_name
+        custom_file_name = simpledialog.askstring("Input", "Enter the custom CSV file name:")
+
+    def start_video_capture(e):
+        global video_capture_running
+        if not csv_folder:
+            print("Please choose a folder to save the CSV file.")
+            return
+
+        video_capture_running = True
+        cap = cv2.VideoCapture(0)
+        detector = PoseDetector()
+
+        while video_capture_running:
+            success, vdo = cap.read()
+            img = detector.findPose(vdo)
+            lmList, bboxInfo = detector.findPosition(img)
+            cv2.imshow("video", img)
+
+            if bboxInfo:
+                current_time = datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]  # Ambil waktu saat ini dengan tiga desimal di belakang koma
+                lmstring = f'{current_time},'  # Setiap baris data dimulai dengan waktu saat itu
+
+                for lm in lmList:
+                    if lm[0] >= 25:
+                        lmstring += f'{lm[1]},{img.shape[0] - lm[2]},{lm[3]},'
+                
+                posList.append(lmstring)
+            print(posList)
+
+            key = cv2.waitKey(1)
+
+    def stop_video_capture(e):
+        global video_capture_running
+        video_capture_running = False
+
+    def save_data(e):
+        if not posList:
+            print("No data to save.")
+            return
+
+        global custom_file_name, csv_folder
+        if custom_file_name is None:
+            print("Please set a custom CSV file name.")
+            return
+
+        file_path = os.path.join(csv_folder, f"{custom_file_name}.csv")
+        # Check if the file already exists
+        if os.path.isfile(file_path):
+            # Append the data to the existing file
+            with open(file_path, 'a') as f:
+                f.writelines(['%s\n' % item for item in posList])
+        else:
+            # Create a new file and write the data
+            with open(file_path, 'w') as f:
+                # Add a header line to the CSV file
+                header = "waktu,x_lutut_kiri,y_lutut_kiri,z_lutut_kiri,x_lutu_kanan,y_lutu_kanan,z_lutu_kanan,x_ankle_kiri,y_ankle_kiri,z_ankle_kiri,x_ankle_kanan,y_ankle_kanan,z_ankle_kanan,x_tumit_kiri,y_tumit_kiri,z_tumit_kiri,x_tumit_kanan,y_tumit_kanan,z_tumit_kanan,x_ujung_kiri,y_ujung_kiri,z_ujung_kiri,x_ujung_kanan,y_ujung_kanan,z_ujung_kanan,"
+                f.write(header + '\n')
+                f.writelines(['%s\n' % item for item in posList])
+
+        print(f"Data saved to {file_path}")
+
+    display_csv_text = ft.Text("", size=16)
+
+    page.add(
+        ft.Column([
+            ft.Text("Walking Motion Capture", size=30, weight="bold"),
+            ft.ElevatedButton("Choose Save Folder", bgcolor="blue", color="white", on_click=choose_save_folder),
+            ft.ElevatedButton("Set Custom File Name", bgcolor="orange", color="white", on_click=set_custom_file_name),
+            ft.ElevatedButton("Start Video Capture", bgcolor="blue", color="white", on_click=start_video_capture),
+            ft.ElevatedButton("Save Data", bgcolor="green", color="white", on_click=save_data),
+            ft.ElevatedButton("Stop Video Capture", bgcolor="red", color="white", on_click=stop_video_capture),
+            ft.Image(src="ehehe/", width=300, height=300, fit="cover"),
+            display_csv_text
+        ])
+    )
+
+ft.app(target=main, assets_dir="ehehe")
